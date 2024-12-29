@@ -28,6 +28,7 @@ class Router:
 
     def send_periodic_updates(self):
         while self.running:
+            print('gay')
             self.topology.send_updates()
             time.sleep(self.period)
 
@@ -37,6 +38,7 @@ class Router:
             if command.lower() == 'quit':
                 self.stop()
             else:
+                print('gayzasso')
                 process_command(self, command) 
 
     def stop(self):
@@ -45,6 +47,7 @@ class Router:
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
+        print (sys.argv)
         print("Usage: ./router.py <address> <period> [startup]")
         sys.exit(1)
 
