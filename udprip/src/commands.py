@@ -1,14 +1,17 @@
 def add_link(router, ip, weight):
-    # Logic to add a link to the router's topology
-    pass
+    router.topology.add_link(ip, weight)
+    print(f"Link to {ip} with weight {weight} added.")
 
 def del_link(router, ip):
-    # Logic to delete a link from the router's topology
-    pass
+    router.topology.remove_link(ip)
+    print(f"Link to {ip} removed.")
 
 def trace_route(router, ip):
-    # Logic to initiate a trace route to the specified IP
-    pass
+    route = router.topology.get_best_route(ip)
+    if route is not None:
+        print(f"Best route to {ip} has weight {route}.")
+    else:
+        print(f"No route found to {ip}.")
 
 def process_command(router, command):
     parts = command.split()

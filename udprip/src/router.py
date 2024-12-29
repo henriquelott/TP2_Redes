@@ -3,15 +3,15 @@ import json
 import sys
 import time
 import threading
-from commands import handle_command
+from commands import process_command
 from topology import Topology
 
 class Router:
     def __init__(self, address, period):
         self.address = address
         self.period = period
-        self.topology = Topology(address)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.topology = Topology(self.socket)
         self.socket.bind((address, 55151))
         self.running = True
 
@@ -35,9 +35,9 @@ class Router:
         while self.running:
             command = input()
             if command.lower() == 'quit':
-                self.running = False
+                self.stop()
             else:
-                handle_command(command, self.topology)
+                process_command(self, command) 
 
     def stop(self):
         self.running = False
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 4:
         with open(sys.argv[3], 'r') as f:
             for line in f:
-                handle_command(line.strip(), router.topology)
+                process_command(router, line.strip())
 
     try:
         router.start()

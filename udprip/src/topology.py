@@ -1,7 +1,10 @@
+import json
+
 class Topology:
-    def __init__(self):
+    def __init__(self, socket):
         self.routing_table = {}
         self.neighbors = {}
+        self.socket = socket
 
     def add_link(self, ip, weight):
         if ip not in self.neighbors:
@@ -24,3 +27,13 @@ class Topology:
 
     def get_neighbors(self):
         return self.neighbors.keys()
+    
+    def send_updates(self):
+        update_message = {
+            "type": "update",
+            "source": self.socket.getsockname()[0],
+            "distances": self.routing_table
+        }
+        for neighbor in self.neighbors:
+            update_message["destination"] = neighbor
+            self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))
