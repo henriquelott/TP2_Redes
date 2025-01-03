@@ -17,7 +17,7 @@ class Router:
 
     def start(self):
         threading.Thread(target=self.receive_messages, daemon=True).start()
-        self.send_periodic_updates()
+        threading.Thread(target=self.send_periodic_updates, daemon=True).start()
         self.command_interface()
 
     def receive_messages(self):
@@ -28,7 +28,6 @@ class Router:
 
     def send_periodic_updates(self):
         while self.running:
-            print('gay')
             self.topology.send_updates()
             time.sleep(self.period)
 
@@ -38,7 +37,6 @@ class Router:
             if command.lower() == 'quit':
                 self.stop()
             else:
-                print('gayzasso')
                 process_command(self, command) 
 
     def stop(self):

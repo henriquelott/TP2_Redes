@@ -57,9 +57,9 @@ class Topology:
     def handle_data_message(self, message):
         destination = message["destination"]
         if destination == self.socket.getsockname()[0]:
-            print(message["payload"])
+            print(message)
         else:
-            next_hop = self.get_best_route(destination)
+            next_hop = destination
             if next_hop:
                 self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
 
@@ -74,6 +74,15 @@ class Topology:
             }
             self.socket.sendto(json.dumps(response).encode(), (message["source"], 55151))
         else:
-            next_hop = self.get_best_route(message["destination"])
+            next_hop = message["destination"]
             if next_hop:
                 self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
+    
+    def trace_message(self, destination):
+        trace_message = {
+            "type": "trace",
+            "source": self.socket.getsockname()[0],
+            "destination": destination,
+            "routers": []
+        }
+        self.handle_trace_message(trace_message)

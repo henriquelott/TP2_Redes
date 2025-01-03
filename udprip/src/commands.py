@@ -8,6 +8,7 @@ def del_link(router, ip):
 
 def trace_route(router, ip):
     route = router.topology.get_best_route(ip)
+    router.topology.trace_message(ip)
     if route is not None:
         print(f"Best route to {ip} has weight {route}.")
     else:
