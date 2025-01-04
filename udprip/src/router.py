@@ -10,7 +10,7 @@ class Router:
     def __init__(self, address, period):
         self.address = address
         self.period = period
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
         self.topology = Topology(self.socket)
         self.socket.bind((address, 55151))
         self.running = True

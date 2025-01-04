@@ -7,37 +7,48 @@ class Topology:
         self.socket = socket
 
     def add_link(self, ip, weight):
-        if ip not in self.neighbors:
+        if ip not in self.routing_table:
             self.neighbors[ip] = weight
-            self.update_routing_table(ip, weight)
+            self.routing_table[ip] = {ip: weight}
+
+    def get_weight(self, ip):
+        return list(self.routing_table[ip].values())[0]
 
     def remove_link(self, ip):
-        if ip in self.neighbors:
+        if ip in self.routing_table:
             del self.neighbors[ip]
-            self.update_routing_table(ip, float('inf'))
+            del self.routing_table[ip]
 
-    def update_routing_table(self, ip, weight):
+    def update_routing_table(self, ip, weight, intermediary):
         # Update the routing table based on the current neighbors
-        for neighbor in self.neighbors:
-            if neighbor not in self.routing_table or self.routing_table[neighbor] > weight:
-                self.routing_table[neighbor] = weight
+        if ip in self.routing_table:
+            intermediary_weight = self.get_weight(intermediary)
+            current_weight = self.get_weight(ip)
+            current_weight = current_weight + intermediary_weight 
+        
+        if ip not in self.routing_table.keys() or current_weight < weight:
+            self.routing_table[ip] = {intermediary: weight}
 
     def get_best_route(self, destination):
-        return self.routing_table.get(destination, None)
+        return list(self.routing_table[destination].keys())[0]
 
     def get_neighbors(self):
         return self.neighbors.keys()
     
     def send_updates(self):
+        distances = {}
+        for routers in self.routing_table.keys():
+            distances[routers] = self.get_weight(routers)
+        
         update_message = {
             "type": "update",
             "source": self.socket.getsockname()[0],
-            "distances": self.routing_table
+            "distances": distances
         }
         for neighbor in self.neighbors:
             update_message["destination"] = neighbor
             self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))
-            
+
     def process_message(self, message):
         if message["type"] == "update":
             self.handle_update_message(message)
@@ -49,10 +60,10 @@ class Topology:
     def handle_update_message(self, message):
         source = message["source"]
         distances = message["distances"]
-        for destination, distance in distances.items():
-            if destination not in self.routing_table or self.routing_table[destination] > distance:
-                self.routing_table[destination] = distance
-                self.neighbors[source] = distance
+        for ips, distance in distances.items():
+            if ips != self.socket.getsockname()[0]:
+                self.update_routing_table(ips, distance, source)
+        print(message)
 
     def handle_data_message(self, message):
         destination = message["destination"]
@@ -72,9 +83,10 @@ class Topology:
                 "destination": message["source"],
                 "payload": json.dumps(message)
             }
-            self.socket.sendto(json.dumps(response).encode(), (message["source"], 55151))
+            destination = self.get_best_route(message["source"])
+            self.socket.sendto(json.dumps(response).encode(), (destination, 55151))
         else:
-            next_hop = message["destination"]
+            next_hop = self.get_best_route(message["destination"])
             if next_hop:
                 self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
     
