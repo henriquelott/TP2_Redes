@@ -1,33 +1,60 @@
 import json
+import threading
 
 class Topology:
-    def __init__(self, socket):
+    def __init__(self, socket, period):
         self.routing_table = {}
         self.neighbors = {}
+        self.period = period
         self.socket = socket
+        self.timers = {}
 
     def add_link(self, ip, weight):
         if ip not in self.routing_table:
             self.neighbors[ip] = weight
             self.routing_table[ip] = {ip: weight}
+        
+        self.set_timer(ip)
 
     def get_weight(self, ip):
         return list(self.routing_table[ip].values())[0]
+
+    def set_timer(self, ip):
+        if ip in self.timers.keys() and self.timers[ip] is not None:
+            self.timers[ip].cancel()
+            print(f"Timer for {ip} canceled")
+        self.timers[ip] = threading.Timer(4*self.period, self.remove_link, args=[ip])
+        self.timers[ip].start()
 
     def remove_link(self, ip):
         if ip in self.routing_table:
             del self.neighbors[ip]
             del self.routing_table[ip]
-
-    def update_routing_table(self, ip, weight, intermediary):
-        # Update the routing table based on the current neighbors
-        if ip in self.routing_table:
-            intermediary_weight = self.get_weight(intermediary)
-            current_weight = self.get_weight(ip)
-            current_weight = current_weight + intermediary_weight 
+            del self.timers[ip]
         
-        if ip not in self.routing_table.keys() or current_weight < weight:
-            self.routing_table[ip] = {intermediary: weight}
+        list_keys = list(self.routing_table.keys())
+        
+        for key in list_keys:
+            if ip in self.routing_table[key].keys():
+                del self.routing_table[key]
+        print(f"Routes learned from {ip} have been removed.")
+
+    def update_routing_table(self, table, neighbor):
+        # Update the routing table based on the current neighbors
+        for ip, weight in table.items():
+            if ip != self.socket.getsockname()[0]:
+                if neighbor in self.neighbors.keys():
+                    neighbor_weight = self.get_weight(neighbor)
+                    weight = weight + neighbor_weight
+                    
+                    if ip in self.routing_table.keys():
+                        current_weight = self.get_weight(ip)
+                        current_weight = current_weight + neighbor_weight 
+                    else:
+                        current_weight = weight
+                    
+                    if ip not in self.routing_table.keys() or weight < current_weight:
+                        self.routing_table[ip] = {neighbor: weight}
 
     def get_best_route(self, destination):
         return list(self.routing_table[destination].keys())[0]
@@ -48,6 +75,9 @@ class Topology:
         for neighbor in self.neighbors:
             update_message["destination"] = neighbor
             self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))
+        
+        print(self.routing_table)
+
 
     def process_message(self, message):
         if message["type"] == "update":
@@ -60,9 +90,13 @@ class Topology:
     def handle_update_message(self, message):
         source = message["source"]
         distances = message["distances"]
-        for ips, distance in distances.items():
-            if ips != self.socket.getsockname()[0]:
-                self.update_routing_table(ips, distance, source)
+        
+        if source in self.neighbors.keys():
+            self.set_timer(source)
+        else:
+            print (f"Received update from {source} wich is not a neighbor")
+        
+        self.update_routing_table(distances, source)
         print(message)
 
     def handle_data_message(self, message):
