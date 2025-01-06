@@ -65,7 +65,7 @@ add 127.0.1.4 10
 add 127.0.1.5 10
 ```
 
-GAY
+# GAY
 
 ## Protocol Features
 - **Distance Vector Routing**: Routers exchange routing information to compute the best paths to destinations.
