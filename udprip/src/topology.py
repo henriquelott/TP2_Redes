@@ -2,19 +2,24 @@ import json
 import threading
 
 class Topology:
-    def __init__(self, socket, period):
+    def __init__(self, socket, period, address):
         self.routing_table = {}
         self.neighbors = {}
         self.period = period
         self.socket = socket
+        self.address = address
         self.timers = {}
 
-    def add_link(self, ip, weight):
-        if ip not in self.routing_table:
+    def add_link(self, ip, weight, neighbor=None):
+        if neighbor is None:
             self.neighbors[ip] = weight
+            self.set_timer(ip)
             self.routing_table[ip] = {ip: weight}
+        else:
+            self.routing_table[ip] = {neighbor: weight}
         
-        self.set_timer(ip)
+        print(f"Link to {ip} with weight {weight} added.")
+        self.send_updates()
 
     def get_weight(self, ip):
         return list(self.routing_table[ip].values())[0]
@@ -27,34 +32,48 @@ class Topology:
         self.timers[ip].start()
 
     def remove_link(self, ip):
-        if ip in self.routing_table:
-            del self.neighbors[ip]
+        if ip in self.routing_table.keys():
             del self.routing_table[ip]
-            del self.timers[ip]
+            
+            if ip in self.neighbors.keys():
+                del self.neighbors[ip]
+                
+                if self.timers[ip] is not None:
+                    del self.timers[ip]
         
         list_keys = list(self.routing_table.keys())
         
         for key in list_keys:
             if ip in self.routing_table[key].keys():
                 del self.routing_table[key]
+        print(f"Link to {ip} removed.")
         print(f"Routes learned from {ip} have been removed.")
+        self.send_updates()
 
     def update_routing_table(self, table, neighbor):
         # Update the routing table based on the current neighbors
         for ip, weight in table.items():
-            if ip != self.socket.getsockname()[0]:
+            if ip != self.address:
                 if neighbor in self.neighbors.keys():
                     neighbor_weight = self.get_weight(neighbor)
-                    weight = weight + neighbor_weight
-                    
-                    if ip in self.routing_table.keys():
-                        current_weight = self.get_weight(ip)
-                        current_weight = current_weight + neighbor_weight 
-                    else:
-                        current_weight = weight
-                    
-                    if ip not in self.routing_table.keys() or weight < current_weight:
-                        self.routing_table[ip] = {neighbor: weight}
+                else:
+                    neighbor_weight = 0
+                
+                weight = weight + neighbor_weight
+                
+                if ip in self.routing_table.keys():
+                    current_weight = self.get_weight(ip)
+                else:
+                    current_weight = weight
+                
+                if ip not in self.routing_table.keys() or weight < current_weight:
+                    self.add_link(ip, weight, neighbor)
+        
+        list_links = list(self.routing_table.keys())
+        ips = list(table.keys())
+        for link in list_links:
+            if (neighbor in self.routing_table[link].keys()) and (link not in ips) and (link != neighbor):
+                self.remove_link(link)
 
     def get_best_route(self, destination):
         return list(self.routing_table[destination].keys())[0]
@@ -69,7 +88,7 @@ class Topology:
         
         update_message = {
             "type": "update",
-            "source": self.socket.getsockname()[0],
+            "source": self.address,
             "distances": distances
         }
         for neighbor in self.neighbors:
@@ -77,7 +96,6 @@ class Topology:
             self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))
         
         print(self.routing_table)
-
 
     def process_message(self, message):
         if message["type"] == "update":
@@ -93,15 +111,13 @@ class Topology:
         
         if source in self.neighbors.keys():
             self.set_timer(source)
+            self.update_routing_table(distances, source)
         else:
             print (f"Received update from {source} wich is not a neighbor")
-        
-        self.update_routing_table(distances, source)
-        print(message)
 
     def handle_data_message(self, message):
         destination = message["destination"]
-        if destination == self.socket.getsockname()[0]:
+        if destination == self.address:
             print(message)
         else:
             next_hop = destination
@@ -109,11 +125,11 @@ class Topology:
                 self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
 
     def handle_trace_message(self, message):
-        message["routers"].append(self.socket.getsockname()[0])
-        if message["destination"] == self.socket.getsockname()[0]:
+        message["routers"].append(self.address)
+        if message["destination"] == self.address:
             response = {
                 "type": "data",
-                "source": self.socket.getsockname()[0],
+                "source": self.address,
                 "destination": message["source"],
                 "payload": json.dumps(message)
             }
@@ -127,7 +143,7 @@ class Topology:
     def trace_message(self, destination):
         trace_message = {
             "type": "trace",
-            "source": self.socket.getsockname()[0],
+            "source": self.address,
             "destination": destination,
             "routers": []
         }
