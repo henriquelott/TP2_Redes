@@ -8,7 +8,7 @@ def trace_route(router, ip):
     route = router.topology.get_best_route(ip)
     router.topology.trace_message(ip)
     if route is not None:
-        print(f"Best route to {ip} has weight {route}.")
+        print(f"Best route to {ip} is through {route}.")
     else:
         print(f"No route found to {ip}.")
 
@@ -28,5 +28,7 @@ def process_command(router, command):
     elif cmd == 'trace' and len(parts) == 2:
         ip = parts[1]
         trace_route(router, ip)
+    elif cmd == 'quit' and len(parts) == 1:
+        router.stop()
     else:
         print("Invalid command")

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import socket
 import json
 import sys
@@ -34,17 +36,17 @@ class Router:
     def command_interface(self):
         while self.running:
             command = input()
-            if command.lower() == 'quit':
-                self.stop()
-            else:
-                process_command(self, command) 
+            process_command(self, command) 
 
     def stop(self):
         self.running = False
+        for timer in self.topology.timers.values():
+            if timer is not None:
+                timer.cancel()
         self.socket.close()
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
+    if len(sys.argv) != 3:
         print (sys.argv)
         print("Usage: ./router.py <address> <period> [startup]")
         sys.exit(1)
@@ -52,7 +54,7 @@ if __name__ == "__main__":
     address = sys.argv[1]
     period = float(sys.argv[2])
     router = Router(address, period)
-
+    
     if len(sys.argv) == 4:
         with open(sys.argv[3], 'r') as f:
             for line in f:
