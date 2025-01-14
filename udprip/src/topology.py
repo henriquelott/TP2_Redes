@@ -18,7 +18,6 @@ class Topology:
         else:
             self.routing_table[ip] = {neighbor: weight}
         
-        print(f"Link to {ip} with weight {weight} added.")
         self.send_updates()
 
     def get_weight(self, ip):
@@ -27,7 +26,6 @@ class Topology:
     def set_timer(self, ip):
         if ip in self.timers.keys() and self.timers[ip] is not None:
             self.timers[ip].cancel()
-            print(f"Timer for {ip} canceled")
         self.timers[ip] = threading.Timer(4*self.period, self.remove_link, args=[ip])
         self.timers[ip].start()
 
@@ -46,8 +44,6 @@ class Topology:
         for key in list_keys:
             if ip in self.routing_table[key].keys():
                 del self.routing_table[key]
-        print(f"Link to {ip} removed.")
-        print(f"Routes learned from {ip} have been removed.")
         self.send_updates()
 
     def update_routing_table(self, table, neighbor):
@@ -76,7 +72,10 @@ class Topology:
                 self.remove_link(link)
 
     def get_best_route(self, destination):
-        return list(self.routing_table[destination].keys())[0]
+        if destination not in self.routing_table.keys():
+            return None
+        else:
+            return list(self.routing_table[destination].keys())[0]
 
     def get_neighbors(self):
         return self.neighbors.keys()
@@ -91,11 +90,11 @@ class Topology:
             "source": self.address,
             "distances": distances
         }
-        for neighbor in self.neighbors:
-            update_message["destination"] = neighbor
-            self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))
-        
-        print(self.routing_table)
+        neighbors = list(self.neighbors.keys())
+        for neighbor in neighbors:
+            if neighbor in self.neighbors.keys():
+                update_message["destination"] = neighbor
+                self.socket.sendto(json.dumps(update_message).encode(), (neighbor, 55151))        
 
     def process_message(self, message):
         if message["type"] == "update":
@@ -112,39 +111,42 @@ class Topology:
         if source in self.neighbors.keys():
             self.set_timer(source)
             self.update_routing_table(distances, source)
-        else:
-            print (f"Received update from {source} wich is not a neighbor")
 
     def handle_data_message(self, message):
         destination = message["destination"]
         if destination == self.address:
-            print(message)
+            payload = json.loads(message["payload"])
+            print(json.dumps(payload, indent=4))
         else:
             next_hop = destination
             if next_hop:
                 self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
 
     def handle_trace_message(self, message):
-        message["routers"].append(self.address)
-        if message["destination"] == self.address:
-            response = {
-                "type": "data",
-                "source": self.address,
-                "destination": message["source"],
-                "payload": json.dumps(message)
-            }
-            destination = self.get_best_route(message["source"])
-            self.socket.sendto(json.dumps(response).encode(), (destination, 55151))
-        else:
-            next_hop = self.get_best_route(message["destination"])
-            if next_hop:
-                self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
+        if message["source"] in self.routing_table.keys() or message["source"] == self.address:
+            message["routers"].append(self.address)
+            if message["destination"] == self.address:
+                response = {
+                    "type": "data",
+                    "source": self.address,
+                    "destination": message["source"],
+                    "payload": json.dumps(message)
+                }
+                destination = self.get_best_route(message["source"])
+                self.socket.sendto(json.dumps(response).encode(), (destination, 55151))
+            else:
+                next_hop = self.get_best_route(message["destination"])
+                if next_hop:
+                    self.socket.sendto(json.dumps(message).encode(), (next_hop, 55151))
     
     def trace_message(self, destination):
-        trace_message = {
-            "type": "trace",
-            "source": self.address,
-            "destination": destination,
-            "routers": []
-        }
-        self.handle_trace_message(trace_message)
+        if destination not in self.routing_table.keys():
+            return
+        else:
+            trace_message = {
+                "type": "trace",
+                "source": self.address,
+                "destination": destination,
+                "routers": []
+            }
+            self.handle_trace_message(trace_message)
