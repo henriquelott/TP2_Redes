@@ -5,12 +5,7 @@ def del_link(router, ip):
     router.topology.remove_link(ip)
 
 def trace_route(router, ip):
-    route = router.topology.get_best_route(ip)
     router.topology.trace_message(ip)
-    if route is not None:
-        print(f"Best route to {ip} is through {route}.")
-    else:
-        print(f"No route found to {ip}.")
 
 def process_command(router, command):
     parts = command.split()
@@ -31,4 +26,4 @@ def process_command(router, command):
     elif cmd == 'quit' and len(parts) == 1:
         router.stop()
     else:
-        print("Invalid command")
+        return
